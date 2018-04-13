@@ -6,21 +6,7 @@
 (function($, Chart) {
     'use strict';
 
-    var statsUrl, $userCanvas, $inboxCanvas, $emailCanvas;
-    var colour1, colour2, fill1, fill2;
-    var chartOpts;
-
-    colour1 = "rgb(217, 83, 79)";
-    colour2 = "rgb(51, 122, 183)";
-    fill1 = "rgba(217, 83, 79, 0.75)";
-    fill2 = "rgba(51, 122, 183, 0.75)";
-
-    statsUrl = $("#stats-chart").data("url");
-    $userCanvas = $("<canvas></canvas>");
-    $inboxCanvas = $("<canvas></canvas>");
-    $emailCanvas = $("<canvas></canvas>");
-
-    chartOpts = {
+    var chartOpts = {
         responsive: true,
         maintainAspectRatio: false,
         scales: {
@@ -50,87 +36,118 @@
         responsiveAnimationDuration: 0, // animation duration after a resize
     };
 
-    $.get(statsUrl, function(data) {
-        var userChart, inboxChart, emailChart, fakeLabels;
+    $.fn.inboxenCharts = function(chartData) {
+        return this.each(function() {
+            var $this = $(this);
+            var statsUrl = $this.data("url");
 
-        if (data.dates === undefined) {
-            console.error("No data returned from server");
-            return;
-        }
+            if ($this._inboxenCharts !== undefined) {
+                return;
+            }
 
-        // horrible hack to avoid printing the full dates under the X axis
-        fakeLabels = new Array(data.dates.length);
-        for (var i = 0; i < data.dates.length; i++) {
-            fakeLabels[i] = "";
-        }
+            $this._inboxenCharts = [];
 
-        $("#users-chart").prepend($userCanvas);
-        userChart = new Chart($userCanvas, {
-            type: 'line',
-            data: {
-                labels: fakeLabels,
-                datasets: [
-                    {
-                        label: "Users with inboxes",
-                        backgroundColor: fill2,
-                        borderColor: colour2,
-                        data: data.active_users,
-                    },
-                    {
-                        label: "Users",
-                        backgroundColor: fill1,
-                        borderColor: colour1,
-                        data: data.users,
-                    }
-                ]
-            },
-            options: chartOpts
+            $.get(statsUrl, function(data) {
+                if (data.dates === undefined) {
+                    console.error("No data returned from server");
+                    return;
+                }
+
+                // horrible hack to avoid printing the full dates under the X axis
+                var fakeLabels = new Array(data.dates.length);
+                for (var i = 0; i < data.dates.length; i++) {
+                    fakeLabels[i] = "";
+                }
+
+                chartData.forEach(function(obj) {
+                    var $canvas = $("<canvas></canvas>");
+                    var dataSets = [];
+
+                    obj.data.forEach(function(d) {
+                        dataSets.push({
+                            label: d.label,
+                            backgroundColor: d.backgroundColor,
+                            borderColor: d.borderColor,
+                            data: data[d.dataAttr],
+                        });
+                    });
+
+                    $this.find(obj.selector).prepend($canvas);
+
+                    $this._inboxenCharts.push(new Chart($canvas, {
+                        type: 'line',
+                        data: {
+                            labels: fakeLabels,
+                            datasets: dataSets,
+                        },
+                        options: chartOpts
+                    }));
+                });
+            });
         });
-
-        $("#inboxes-chart").prepend($inboxCanvas);
-        inboxChart = new Chart($inboxCanvas, {
-            type: 'line',
-            data: {
-                labels: fakeLabels,
-                datasets: [
-                    {
-                        label: "Inboxes with emails",
-                        backgroundColor: fill2,
-                        borderColor: colour2,
-                        data: data.active_inboxes,
-                    },
-                    {
-                        label: "Inboxes",
-                        backgroundColor: fill1,
-                        borderColor: colour1,
-                        data: data.inboxes,
-                    }
-                ]
-            },
-            options: chartOpts
-        });
-
-        $("#emails-chart").prepend($emailCanvas);
-        emailChart = new Chart($emailCanvas, {
-            type: 'line',
-            data: {
-                labels: fakeLabels,
-                datasets: [
-                    {
-                        label: "Emails read",
-                        backgroundColor: fill2,
-                        borderColor: colour2,
-                        data: data.read_emails,
-                    },
-                    {
-                        label: "Emails",
-                        backgroundColor: fill1,
-                        borderColor: colour1,
-                        data: data.emails,
-                    }
-                ]
-            },
-            options: chartOpts
-        });
-    });
+    };
 })(jQuery, Chart);
+
+(function($, Chart) {
+    'use strict';
+
+    var colour1 = "rgb(217, 83, 79)";
+    var colour2 = "rgb(51, 122, 183)";
+    var fill1 = "rgba(217, 83, 79, 0.75)";
+    var fill2 = "rgba(51, 122, 183, 0.75)";
+
+    var chartData = [
+        {
+            selector: "#users-chart",
+            data: [
+                {
+                    label: "Users with inboxes",
+                    backgroundColor: fill2,
+                    borderColor: colour2,
+                    dataAttr: "active_users",
+                },
+                {
+                    label: "Users",
+                    backgroundColor: fill1,
+                    borderColor: colour1,
+                    dataAttr: "users",
+                }
+            ],
+        },
+        {
+            selector: "#inboxes-chart",
+            data: [
+                {
+                    label: "Inboxes with emails",
+                    backgroundColor: fill2,
+                    borderColor: colour2,
+                    dataAttr: "active_inboxes",
+                },
+                {
+                    label: "Inboxes",
+                    backgroundColor: fill1,
+                    borderColor: colour1,
+                    dataAttr: "inboxes",
+                }
+            ],
+        },
+        {
+            selector: "#emails-chart",
+            data: [
+                {
+                    label: "Emails read",
+                    backgroundColor: fill2,
+                    borderColor: colour2,
+                    dataAttr: "read_emails",
+                },
+                {
+                    label: "Emails",
+                    backgroundColor: fill1,
+                    borderColor: colour1,
+                    dataAttr: "emails",
+                }
+            ],
+        },
+    ];
+    $("#stats-chart").inboxenCharts(chartData);
+})(jQuery);
