@@ -3,7 +3,7 @@
  * Licensed under AGPLv3 (https://github.com/Inboxen/Inboxen/blob/master/LICENSE)
  */
 
-(function($){
+(function($) {
     'use strict';
 
     $.fn.inboxenInboxCopyBtn = function() {
@@ -15,7 +15,7 @@
             return this;
         }
 
-        this.each(function() {
+        return this.each(function() {
             var $this, inboxNameSelector, buttonClasses,
                 buttonContainerSelector, buttonText, buttonTitle,
                 childrenSelector, inboxList;
@@ -77,11 +77,12 @@
                 $this.find(buttonContainerSelector).prepend(button);
             });
         });
-
-        return this;
     };
+})(jQuery);
+
+(function($) {
+    'use strict';
 
     $("#inbox-list").inboxenInboxCopyBtn();
     $("#email-list").inboxenInboxCopyBtn();
-
 })(jQuery);

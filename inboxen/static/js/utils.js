@@ -11,7 +11,7 @@
         // submitting, as well as giving some visual feedback that something is
         // happening
 
-        this.each(function() {
+        return this.each(function() {
             var $this = $(this);
 
             if ($this.is("form")) {
@@ -39,8 +39,6 @@
                         .addClass("fa-spinner fa-spin");
             }
         });
-
-        return this;
     };
 
 })(jQuery);
