@@ -3,7 +3,7 @@
  * Licensed under AGPLv3 (https://github.com/Inboxen/Inboxen/blob/master/LICENSE)
  */
 
-(function($){
+(function($) {
     'use strict';
 
     var pinned_label = '<span class="label label-warning" title="Inbox has been pinned">Pinned</span>';
@@ -16,72 +16,78 @@
         }
     }
 
-    $(".inbox-options button[type=submit]").click(function(event) {
-        event.preventDefault();
+    $.fn.inboxenPinnedBotton = function() {
+        return this.each(function() {
+            $(this).click(function(e) {
+                var $this = $(this);
+                e.preventDefault();
 
-        var $this = $(this);
-        if ($this.data("clicked") === "yes") {
-            return false;
-        }
-
-        $this.inboxenSpinnerToggle();
-
-        var button = {"name": $this.attr("name"), "value": $this.attr("value")};
-        var $form = $this.parent("form");
-        var form_data = $form.serializeArray();
-        form_data.push(button);
-
-        $.ajax({
-            type: "POST",
-            url: $this.parent("form").data("url"),
-            data: form_data,
-            complete: function(xhr, statusText) {
-                if (xhr.status === 204) {
-                    var $row = $("#" + $form.data("inbox-selector"));
-                    if (button.name === "pin-inbox") {
-                        togglePinned($row);
-                    } else {
-                        // don't know what was pressed
-                        return;
-                    }
-                } else {
-                    var $messageBlock = $("#alertmessages");
-                    var message = '<div class="alert alert-warning" role="alert">Something went wrong!<button type="button" class="close" data-dismiss="alert"><span class="fa fa-times" aria-hidden="true"></span><span class="sr-only">Close</span></button></div>';
-                    $messageBlock.append(message);
+                if ($this.data("clicked") === "yes") {
+                    return;
                 }
 
-                // finally, re-enable button
                 $this.inboxenSpinnerToggle();
-            }
+
+                var button = {"name": $this.attr("name"), "value": $this.attr("value")};
+                var $form = $this.parent("form");
+                var form_data = $form.serializeArray();
+                form_data.push(button);
+
+                $.ajax({
+                    type: "POST",
+                    url: $this.parent("form").data("url"),
+                    data: form_data,
+                    complete: function(xhr, statusText) {
+                        if (xhr.status === 204) {
+                            var $row = $("#" + $form.data("inbox-selector"));
+                            if (button.name === "pin-inbox") {
+                                togglePinned($row);
+                            } else {
+                                // don't know what was pressed
+                                return;
+                            }
+                        } else {
+                            var $messageBlock = $("#alertmessages");
+                            var message = '<div class="alert alert-warning" role="alert">Something went wrong!<button type="button" class="close" data-dismiss="alert"><span class="fa fa-times" aria-hidden="true"></span><span class="sr-only">Close</span></button></div>';
+                            $messageBlock.append(message);
+                        }
+
+                        // finally, re-enable button
+                        $this.inboxenSpinnerToggle();
+                    }
+                });
+            });
         });
-    });
+    };
 })(jQuery);
 
 (function($){
     'use strict';
 
-    function initForm($form, completeCallback) {
-        $form.submit(function(event) {
-            event.preventDefault();
-            var $this;
+    $.fn.inboxenInitForm = function(completeCallback) {
+        return this.each(function() {
+            $(this).submit(function(e) {
+                e.preventDefault();
+                var $this;
 
-            $this = $(this);
-            $this.$form = $form;
+                $this = $(this);
+                $this.$form = $form;
 
-            if ($this.data("clicked") === "yes") {
-                return false;
-            }
+                if ($this.data("clicked") === "yes") {
+                    return;
+                }
 
-            $this.inboxenSpinnerToggle();
+                $this.inboxenSpinnerToggle();
 
-            $.ajax({
-                type: "POST",
-                url: $this.attr('action'),
-                data: $this.serializeArray(),
-                complete: completeCallback.bind(null, $this)
+                $.ajax({
+                    type: "POST",
+                    url: $this.attr('action'),
+                    data: $this.serializeArray(),
+                    complete: completeCallback.bind(null, $this)
+                });
             });
         });
-    }
+    };
 
     function homeFormComplete($this, xhr, statusText) {
         var description, inboxSelector, is_disabled, is_pinned, $row;
@@ -114,7 +120,7 @@
             $row.remove();
         } else if (xhr.status === 200) {
             $this.$form.removeData().html(xhr.responseText);
-            initForm($this.$form, homeFormComplete);
+            $this.$form.inboxenInitForm(homeFormComplete);
             $row.find("a").click(function() {
                 $row.remove();
             });
@@ -130,7 +136,7 @@
         } else {
             if (xhr.status === 200) {
                 $this.$form.removeData().html(xhr.responseText);
-                initForm($this.$form, inboxFormComplete);
+                $this.$form.inboxenInitForm(inboxFormComplete);
                 $this.$form.parents(".inbox-edit-form-row").find("a").click(function($this) {
                     $this.$form.parents(".inbox-edit-form-row").remove();
                 }.bind(null, $this));
@@ -149,7 +155,7 @@
         } else {
             if (xhr.status === 200) {
                 $this.$form.removeData().html(xhr.responseText);
-                initForm($this.$form, addInboxComplete);
+                $this.$form.inboxenInitForm(addInboxComplete);
                 $("#inbox-add-form").find("a").click(function() {
                     $("#inbox-add-form").remove();
                 });
@@ -161,93 +167,116 @@
     }
 
     // adds event listeners for inline forms to be popped in
-    $("#inbox-list .inbox-options a").click(function() {
-        // option buttons on inbox list
-        var $this = $(this);
-        var $row = $this.parents("div.row:has(.inbox-name)");
-        var formURL = "/forms/inbox/edit/" + $row.attr("id") + "/";
+    $.fn.inboxenOptions = function() {
+        return this.each(function() {
+            $(this).click(function(e) {
+                // option buttons on inbox list
+                var $this = $(this);
+                var $row = $this.parents("div.row:has(.inbox-name)");
+                var formURL = "/forms/inbox/edit/" + $row.attr("id") + "/";
 
-        if (!$row.next().hasClass("inbox-edit-form-row")) {
-            if ($this.data("clicked") === "yes") {
-                return false;
-            }
+                e.preventDefault();
 
-            $this.inboxenSpinnerToggle();
-
-            $.get(formURL, function(data) {
-                // double check
                 if (!$row.next().hasClass("inbox-edit-form-row")) {
-                    $row.after("<div class=\"inbox-edit-form-row row\"><div class=\"col-xs-12\">" + data + "</div></div>");
-                    initForm($row.next().find("form"), homeFormComplete);
-                    $row.next().find("a").click(function() {
-                        $row.next().remove();
+                    if ($this.data("clicked") === "yes") {
+                        return;
+                    }
+
+                    $this.inboxenSpinnerToggle();
+
+                    $.get(formURL, function(data) {
+                        // double check
+                        if (!$row.next().hasClass("inbox-edit-form-row")) {
+                            $row.after("<div class=\"inbox-edit-form-row row\"><div class=\"col-xs-12\">" + data + "</div></div>");
+                            $row.next().find("form").inboxenInitForm(homeFormComplete);
+                            $row.next().find("a").click(function() {
+                                $row.next().remove();
+                            });
+                        }
+
+                        // finally, re-enable button
+                        $this.inboxenSpinnerToggle();
                     });
+                } else if ($row.next().hasClass("inbox-edit-form-row")) {
+                    $row.next().remove();
                 }
-
-                // finally, re-enable button
-                $this.inboxenSpinnerToggle();
+                return;
             });
-        } else if ($row.next().hasClass("inbox-edit-form-row")) {
-            $row.next().remove();
-        }
-        return false;
-    });
-
-    $("#email-list .inbox-edit").click(function() {
-        // option button on inbox page
-        var $this = $(this);
-        var $table = $(".honeydew");
-        var formURL = "/forms/inbox/edit/" + $this.data("inbox-id") + "/";
-
-        if (!$table.children(":first").hasClass("inbox-edit-form-row")) {
-            if ($this.data("clicked") === "yes") {
-                return false;
-            }
-
-            $this.inboxenSpinnerToggle();
-
-            $.get(formURL, function(data) {
-                // double check
-                if (!$table.children(":first").hasClass("inbox-edit-form-row")) {
-                    $table.prepend("<div class=\"inbox-edit-form-row row\"><div class=\"col-xs-12\">" + data + "</div></div>");
-                    initForm($table.children(":first").find("form"), inboxFormComplete);
-                    $table.children(":first").find("a").click(function() {
-                        $table.children(":first").remove();
-                    });
-                }
-
-                // finally, re-enable button
-                $this.inboxenSpinnerToggle();
-            });
-        } else if ($table.children(":first").hasClass("inbox-edit-form-row")) {
-            $table.children(":first").remove();
-        }
-        return false;
-    });
-
-    $("#add-inbox").click(function() {
-        var $this = $(this);
-        var $nav = $("#navbar-container");
-
-        if ($this.data("clicked") === "yes" || $("#inbox-add-form").length !== 0) {
-            return false;
-        }
-
-        $this.inboxenSpinnerToggle();
-
-        $.get($this.data("form-url"), function(data) {
-            var $addForm;
-
-            $addForm = $("<div id=\"inbox-add-form\" class=\"row\"><div class=\"panel panel-default col-xs-12 col-sm-6 col-sm-offset-3 col-md-4 col-md-offset-4 col-lg-4 col-lg-offset-4\"><div class=\"panel-body\">" + data + "</div></div></div>");
-            $nav.after($addForm);
-            initForm($addForm.find("form"), addInboxComplete);
-            $addForm.find("a").click(function() {
-                $addForm.remove();
-            });
-
-            // finally, re-enable button
-            $this.inboxenSpinnerToggle();
         });
-        return false;
-    });
+    };
+
+    $.fn.inboxenEditForm = function() {
+        return this.each(function() {
+            $(this).click(function(e) {
+                // option button on inbox page
+                var $this = $(this);
+                var $table = $(".honeydew");
+                var formURL = "/forms/inbox/edit/" + $this.data("inbox-id") + "/";
+
+                e.preventDefault();
+
+                if (!$table.children(":first").hasClass("inbox-edit-form-row")) {
+                    if ($this.data("clicked") === "yes") {
+                        return;
+                    }
+
+                    $this.inboxenSpinnerToggle();
+
+                    $.get(formURL, function(data) {
+                        // double check
+                        if (!$table.children(":first").hasClass("inbox-edit-form-row")) {
+                            $table.prepend("<div class=\"inbox-edit-form-row row\"><div class=\"col-xs-12\">" + data + "</div></div>");
+                            $table.children(":first").find("form").inboxenInitForm(inboxFormComplete);
+                            $table.children(":first").find("a").click(function() {
+                                $table.children(":first").remove();
+                            });
+                        }
+
+                        // finally, re-enable button
+                        $this.inboxenSpinnerToggle();
+                    });
+                } else if ($table.children(":first").hasClass("inbox-edit-form-row")) {
+                    $table.children(":first").remove();
+                }
+            });
+        });
+    };
+
+    $.fn.inboxenAddForm = function() {
+        return this.each(function() {
+            $(this).click(function(e) {
+                var $this = $(this);
+                var $nav = $("#navbar-container");
+
+                e.preventDefault();
+
+                if ($this.data("clicked") === "yes" || $("#inbox-add-form").length !== 0) {
+                    return;
+                }
+
+                $this.inboxenSpinnerToggle();
+
+                $.get($this.data("form-url"), function(data) {
+                    var $addForm;
+
+                    $addForm = $("<div id=\"inbox-add-form\" class=\"row\"><div class=\"panel panel-default col-xs-12 col-sm-6 col-sm-offset-3 col-md-4 col-md-offset-4 col-lg-4 col-lg-offset-4\"><div class=\"panel-body\">" + data + "</div></div></div>");
+                    $nav.after($addForm);
+                    $addForm.find("form").inboxenInitForm(addInboxComplete);
+                    $addForm.find("a").click(function() {
+                        $addForm.remove();
+                    });
+
+                    // finally, re-enable button
+                    $this.inboxenSpinnerToggle();
+                });
+            });
+        });
+    };
+})(jQuery);
+
+(function($){
+    $("#add-inbox").inboxenAddForm();
+    $("#email-list .inbox-edit").inboxenEditForm();
+    $("#inbox-list .inbox-options a").inboxenOptions();
+    $(".inbox-options button[type=submit]").inboxenPinnedBotton();
 })(jQuery);
