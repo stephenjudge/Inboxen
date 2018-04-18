@@ -17,20 +17,17 @@
 #    along with Inboxen.  If not, see <http://www.gnu.org/licenses/>.
 ##
 
-
+from braces.views import LoginRequiredMixin
+from celery import exceptions
+from celery.result import AsyncResult
 from django import http
 from django.conf import settings
 from django.core.cache import cache
 from django.views import generic
 from six.moves import urllib
-
-from braces.views import LoginRequiredMixin
+from watson import models as watson_models
 
 from inboxen import tasks
-
-from celery import exceptions
-from celery.result import AsyncResult
-from watson import models as watson_models
 
 __all__ = ["SearchView", "SearchApiView"]
 

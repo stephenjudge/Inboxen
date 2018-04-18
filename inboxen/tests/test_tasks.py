@@ -22,6 +22,7 @@ from datetime import timedelta
 from django.core import mail
 from django.contrib.sessions.models import Session
 from django.utils import timezone
+from watson.models import SearchEntry
 import mock
 
 from inboxen import models, tasks
@@ -213,7 +214,11 @@ class DeleteTestCase(InboxenTestCase):
 
     def test_delete_inboxen_item(self):
         email = factories.EmailFactory(inbox__user=self.user)
+        self.assertEqual(SearchEntry.objects.filter(content_type__model="email").count(), 1)
+
         tasks.delete_inboxen_item.delay("email", email.id)
+
+        self.assertEqual(SearchEntry.objects.filter(content_type__model="email").count(), 0)
 
         with self.assertRaises(models.Email.DoesNotExist):
             models.Email.objects.get(id=email.id)
