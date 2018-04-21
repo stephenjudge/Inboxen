@@ -35,17 +35,17 @@ class SearchViewTestCase(InboxenTestCase):
         login = self.client.login(username=self.user.username, password="123456", request=MockRequest(self.user))
 
         self.url = urlresolvers.reverse("user-search", kwargs={"q": "cheddär"})
-        key = "%s-cheddär" % self.user.id
+        key = "%s-None-cheddär" % self.user.id
         self.key = urllib.parse.quote(key)
 
         if not login:
             raise Exception("Could not log in")
 
     def test_context(self):
-        cache.cache.set(self.key, {"emails": [], "inboxes": []})
+        cache.cache.set(self.key, {"results": []})
         response = self.client.get(self.url)
         self.assertIn("search_results", response.context)
-        self.assertCountEqual(response.context["search_results"], ["emails", "inboxes"])
+        self.assertCountEqual(response.context["search_results"], ["results"])
 
     def test_content(self):
         cache.cache.set(self.key, {"emails": [], "inboxes": []})
@@ -60,6 +60,6 @@ class SearchViewTestCase(InboxenTestCase):
                           "user-searchapi", kwargs={"q": "cheddär"}), response.content.decode("utf-8"))
 
     def test_get(self):
-        cache.cache.set(self.key, {"emails": [], "inboxes": []})
+        cache.cache.set(self.key, {"results": []})
         response = self.client.get(self.url)
         self.assertEqual(response.status_code, 200)

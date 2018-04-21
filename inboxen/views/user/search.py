@@ -17,20 +17,20 @@
 #    along with Inboxen.  If not, see <http://www.gnu.org/licenses/>.
 ##
 
-
-from django import http
-from django.conf import settings
-from django.core.cache import cache
-from django.views import generic
-from six.moves import urllib
-
 from braces.views import LoginRequiredMixin
-
-from inboxen import tasks
-
 from celery import exceptions
 from celery.result import AsyncResult
+from django import http
+from django.conf import settings
+from django.contrib.contenttypes.models import ContentType
+from django.core.cache import cache
+from django.db.models import Case, When
+from django.views import generic
+from six.moves import urllib
 from watson import models as watson_models
+
+from inboxen import models, tasks
+
 
 __all__ = ["SearchView", "SearchApiView"]
 
@@ -43,15 +43,14 @@ class SearchView(LoginRequiredMixin, generic.ListView):
     timeout = 1  # time to wait for results
     model = None  # will be useful later, honest!
 
-    query_param = "q"
     context_object_name = "search_results"
 
     def get(self, request, *args, **kwargs):
-        self.query = self.get_query(request)
+        self.query, self.last_item = self.get_query(request)
         return super(SearchView, self).get(request, *args, **kwargs)
 
     def get_cache_key(self):
-        key = u"{0}-{1}".format(self.request.user.id, self.query)
+        key = u"{}-{}-{}".format(self.request.user.id, self.last_item, self.query)
         return urllib.parse.quote(key.encode("utf-8"))
 
     def get_results(self):
@@ -60,7 +59,7 @@ class SearchView(LoginRequiredMixin, generic.ListView):
         Raises TimeoutError if results aren't ready by self.timeout"""
         result = cache.get(self.get_cache_key())
         if result is None or settings.CELERY_TASK_ALWAYS_EAGER:
-            search_task = tasks.search.apply_async(args=[self.request.user.id, self.query])
+            search_task = tasks.search.apply_async(args=[self.request.user.id, self.query, self.last_item])
             result = {"task": search_task.id}
             cache.set(self.get_cache_key(), result, tasks.SEARCH_TIMEOUT)
         elif "task" in result:
@@ -85,17 +84,12 @@ class SearchView(LoginRequiredMixin, generic.ListView):
         queryset = {}
 
         # some rubbish about not liking empty sets during IN statements :\
-        if len(results["emails"]) > 0:
-            queryset["emails"] = watson_models.SearchEntry.objects.filter(id__in=results["emails"][:10])\
-                    .prefetch_related("object")
-        else:
-            queryset["emails"] = []
-
-        if len(results["inboxes"]) > 0:
-            queryset["inboxes"] = watson_models.SearchEntry.objects.filter(id__in=results["inboxes"][:10])\
-                    .prefetch_related("object")
-        else:
-            queryset["inboxes"] = []
+        if len(results["results"]) > 0:
+            queryset["results"] = watson_models.SearchEntry.objects.filter(id__in=results["results"]) \
+                .prefetch_related("object") \
+                .order_by(Case(*[When(pk=pk, then=pos) for pos, pk in enumerate(results["results"])]))
+            queryset["has_next"] = results["has_next"]
+            queryset["last"] = results.get("last", None)
 
         return queryset
 
@@ -109,15 +103,17 @@ class SearchView(LoginRequiredMixin, generic.ListView):
         else:
             context["waiting"] = len(context[self.context_object_name]) == 0
 
+        context["content_types"] = {
+            "inbox": ContentType.objects.get_for_model(models.Inbox),
+            "email": ContentType.objects.get_for_model(models.Email),
+        }
+
         return context
 
-    def get_query_param(self):
-        return self.query_param
-
     def get_query(self, request):
-        get_query = request.GET.get(self.get_query_param(), "").strip()
-        kwarg_query = self.kwargs.get(self.get_query_param(), "").strip()
-        return kwarg_query or get_query
+        get_query = request.GET.get("q", "").strip()
+        kwarg_query = self.kwargs.get("q", "").strip()
+        return (kwarg_query or get_query, request.GET.get("after", "").strip() or None)
 
 
 class SearchApiView(SearchView):

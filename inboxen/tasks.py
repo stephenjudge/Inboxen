@@ -22,6 +22,7 @@ from importlib import import_module
 import gc
 import logging
 
+from cursor_pagination import CursorPaginator
 from django.apps import apps
 from django.conf import settings
 from django.contrib.auth import get_user_model
@@ -32,16 +33,17 @@ from django.db.models import Avg, Case, Count, F, Max, Min, StdDev, Sum, When
 from django.db.models.functions import Coalesce
 from django.utils import timezone
 from six.moves import urllib
-
 from watson import search as watson_search
 
 from inboxen import models
 from inboxen.celery import app
 from inboxen.utils.tasks import task_group_skew
 
+
 log = logging.getLogger(__name__)
 
 SEARCH_TIMEOUT = 60 * 30
+SEARCH_PAGE_SIZE = 25
 
 
 @app.task(ignore_result=True)
@@ -209,17 +211,29 @@ def requests():
 
 
 @app.task(rate_limit="100/s")
-def search(user_id, search_term):
+def search(user_id, search_term, after=None):
     """Offload the expensive part of search to avoid blocking the web interface"""
     email_subquery = models.Email.objects.viewable(user_id)
     inbox_subquery = models.Inbox.objects.viewable(user_id)
+    search_qs = watson_search.search(search_term, models=(email_subquery, inbox_subquery))
 
-    results = {
-        "emails": list(watson_search.search(search_term, models=(email_subquery,)).values_list("id", flat=True)),
-        "inboxes": list(watson_search.search(search_term, models=(inbox_subquery,)).values_list("id", flat=True)),
+    page_kwargs = {
+        "after": after,
+        "first": SEARCH_PAGE_SIZE,
     }
 
-    key = u"{0}-{1}".format(user_id, search_term)
+    paginator = CursorPaginator(search_qs, ordering=('-watson_rank', '-id'))
+    page = paginator.page(**page_kwargs)
+
+    results = {
+        "results": [p.id for p in page],
+        "has_next": page.has_next,
+    }
+
+    if len(results["results"]) > 0:
+        results["last"] = paginator.cursor(page[-1])
+
+    key = u"{}-{}-{}".format(user_id, after, search_term)
     key = urllib.parse.quote(key.encode("utf-8"))
 
     cache.set(key, results, SEARCH_TIMEOUT)
